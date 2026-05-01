@@ -1,0 +1,358 @@
+{
+  "database": {
+    "title": "Phishing Risk Scorer — Project Board",
+    "description": "Suivi complet du projet cybersécurité Phishing Risk Scorer v2.0",
+    "icon": "🛡️",
+    "cover": "https://images.unsplash.com/photo-1550751827-4bd374c3f58b",
+    "properties": {
+      "Task":             { "type": "title" },
+      "Status":           { "type": "select",       "options": ["Todo", "In Progress", "Done", "Blocked"] },
+      "Priority":         { "type": "select",       "options": ["Critical", "High", "Medium", "Low"] },
+      "Phase":            { "type": "select",       "options": ["Phase 1", "Phase 2", "Phase 3", "Phase 4"] },
+      "Owner":            { "type": "select",       "options": ["Romuald", "Claude", "External"] },
+      "Due Date":         { "type": "date" },
+      "Description":      { "type": "rich_text" },
+      "Effort (hours)":   { "type": "number",       "format": "number" },
+      "Dependencies":     { "type": "multi_select" },
+      "Tags":             { "type": "multi_select", "options": ["backend", "frontend", "extension", "docs", "devops", "qa", "design", "api"] },
+      "URL":              { "type": "url" },
+      "Completed Date":   { "type": "date" }
+    },
+    "tasks": [
+
+      {
+        "title": "Créer phishing_analyzer.py — 10 vecteurs de détection",
+        "status": "Done",
+        "priority": "Critical",
+        "phase": "Phase 1",
+        "owner": "Romuald",
+        "dueDate": "2026-04-10",
+        "completedDate": "2026-04-10",
+        "effort": 8,
+        "tags": ["backend"],
+        "description": "Moteur principal avec 10 fonctions : URLs raccourcies, mots urgence, SequenceMatcher typosquatting, IP directe, TLDs suspects, SSL, SMTP headers, VirusTotal, contenu page. Retourne score 0-100 + risk_level + details[].",
+        "url": "https://github.com/Mbesigne/phishing-scorer/blob/main/phishing_analyzer.py"
+      },
+
+      {
+        "title": "Créer app.py — Serveur Flask + SQLite + 9 routes API",
+        "status": "Done",
+        "priority": "Critical",
+        "phase": "Phase 1",
+        "owner": "Romuald",
+        "dueDate": "2026-04-15",
+        "completedDate": "2026-04-15",
+        "effort": 5,
+        "tags": ["backend", "api"],
+        "description": "Serveur Flask avec init_db() SQLite, 9 routes REST : GET /, POST /analyze, GET /api/analyze, GET /history, DELETE /history/<id>, GET /stats, POST /batch-analyze, GET /export/csv, GET /export/json, GET /health. CORS activé via after_request.",
+        "url": "https://github.com/Mbesigne/phishing-scorer/blob/main/app.py"
+      },
+
+      {
+        "title": "Créer templates/index.html — Interface web 4 onglets",
+        "status": "Done",
+        "priority": "Critical",
+        "phase": "Phase 1",
+        "owner": "Romuald",
+        "dueDate": "2026-04-18",
+        "completedDate": "2026-04-18",
+        "effort": 6,
+        "tags": ["frontend"],
+        "description": "Interface 4 onglets : Analyser (cercle score animé), Historique (filtres, pagination, export), Guide (SPF/DKIM/DMARC), API (docs endpoints). Responsive, thème violet gradient, dark mode optionnel, localStorage history.",
+        "url": "https://github.com/Mbesigne/phishing-scorer/blob/main/templates/index.html"
+      },
+
+      {
+        "title": "Créer extension Chrome — Manifest V3 MVP (Gmail/Outlook)",
+        "status": "Done",
+        "priority": "High",
+        "phase": "Phase 1",
+        "owner": "Romuald",
+        "dueDate": "2026-04-25",
+        "completedDate": "2026-04-25",
+        "effort": 6,
+        "tags": ["extension"],
+        "description": "Extension MV3 avec background.js (service worker), content.js (injection Gmail/Outlook), popup.html/js. Bouton 🛡️ Analyser, overlay résultat, badge icône, chrome.storage.local pour historique.",
+        "dependencies": ["Créer app.py — Serveur Flask + SQLite + 9 routes API"],
+        "url": "https://github.com/Mbesigne/phishing-scorer/tree/main/chrome_extension"
+      },
+
+      {
+        "title": "Déployer sur Render.com — production",
+        "status": "Done",
+        "priority": "High",
+        "phase": "Phase 1",
+        "owner": "Romuald",
+        "dueDate": "2026-04-28",
+        "completedDate": "2026-04-28",
+        "effort": 2,
+        "tags": ["devops"],
+        "description": "Web Service Render.com. Build Command: pip install -r requirements.txt. Start Command: python app.py. URL: https://phishing-scorer.onrender.com. Auto-deploy depuis GitHub main.",
+        "url": "https://phishing-scorer.onrender.com/health"
+      },
+
+      {
+        "title": "Publier code sur GitHub — repository public",
+        "status": "Done",
+        "priority": "High",
+        "phase": "Phase 1",
+        "owner": "Romuald",
+        "dueDate": "2026-04-28",
+        "completedDate": "2026-04-28",
+        "effort": 1,
+        "tags": ["docs", "devops"],
+        "description": "Repository public github.com/Mbesigne/phishing-scorer avec README.md, .env.example, requirements.txt, .gitignore.",
+        "url": "https://github.com/Mbesigne/phishing-scorer"
+      },
+
+      {
+        "title": "Refactorer extension Chrome pour Render.com — Yahoo Mail + alert()",
+        "status": "Done",
+        "priority": "High",
+        "phase": "Phase 2",
+        "owner": "Romuald",
+        "dueDate": "2026-05-01",
+        "completedDate": "2026-05-01",
+        "effort": 4,
+        "tags": ["extension"],
+        "description": "Réécriture complète : background.js pointe https://phishing-scorer.onrender.com/analyze (AbortController 5s), content.js ajoute Yahoo Mail + setInterval 3s + alert() résultat, popup.html 400px gradient 2 boutons, popup.js openDashboard + testAnalysis.",
+        "dependencies": ["Déployer sur Render.com — production"]
+      },
+
+      {
+        "title": "Cahier de charges complet — fichier .docx",
+        "status": "Done",
+        "priority": "High",
+        "phase": "Phase 2",
+        "owner": "Romuald",
+        "dueDate": "2026-05-01",
+        "completedDate": "2026-05-01",
+        "effort": 4,
+        "tags": ["docs"],
+        "description": "Document Word 15+ pages : résumé exécutif, contexte, architecture, features (10 vecteurs), détails techniques, timeline, personas, critères de succès, risques, budget, maintenance, conclusion. Généré via python-docx.",
+        "url": ""
+      },
+
+      {
+        "title": "Créer Notion board — fichier notion-export.json",
+        "status": "Done",
+        "priority": "Medium",
+        "phase": "Phase 2",
+        "owner": "Romuald",
+        "dueDate": "2026-05-01",
+        "completedDate": "2026-05-01",
+        "effort": 2,
+        "tags": ["docs"],
+        "description": "JSON exportable contenant toutes les tâches du projet avec metadata complète (status, priority, phase, effort, tags, dependencies, description). Importable manuellement dans Notion."
+      },
+
+      {
+        "title": "Tester extension sur 5+ emails phishing réels",
+        "status": "Todo",
+        "priority": "Medium",
+        "phase": "Phase 2",
+        "owner": "Romuald",
+        "dueDate": "2026-05-05",
+        "effort": 3,
+        "tags": ["qa"],
+        "description": "QA manuel : ouvrir 5+ emails suspects dans Gmail/Outlook/Yahoo, cliquer bouton 🎯, vérifier score cohérent. Documenter résultats dans un fichier TESTS.md avec URL, score attendu, score obtenu.",
+        "dependencies": ["Refactorer extension Chrome pour Render.com — Yahoo Mail + alert()"]
+      },
+
+      {
+        "title": "Améliorer README — screenshots et GIF de démonstration",
+        "status": "Todo",
+        "priority": "Medium",
+        "phase": "Phase 2",
+        "owner": "Romuald",
+        "dueDate": "2026-05-08",
+        "effort": 3,
+        "tags": ["docs"],
+        "description": "Capturer : (1) interface web avec analyse complète, (2) extension Chrome en action sur Gmail, (3) popup résultat. Créer GIF de démo avec LiceCap ou OBS. Intégrer dans README.md."
+      },
+
+      {
+        "title": "Créer icônes professionnelles 16/48/128px",
+        "status": "Todo",
+        "priority": "High",
+        "phase": "Phase 3",
+        "owner": "Romuald",
+        "dueDate": "2026-05-15",
+        "effort": 2,
+        "tags": ["design", "extension"],
+        "description": "Remplacer les icônes générées par Pillow par des icônes SVG → PNG professionnelles. Design : bouclier violet gradient avec initiale 'P' ou coche. Tailles requises : 16x16, 48x48, 128x128 PNG."
+      },
+
+      {
+        "title": "Intégrer VirusTotal API v3",
+        "status": "Todo",
+        "priority": "Medium",
+        "phase": "Phase 3",
+        "owner": "Romuald",
+        "dueDate": "2026-05-20",
+        "effort": 4,
+        "tags": ["backend", "api"],
+        "description": "Activer check_virustotal() dans phishing_analyzer.py. Clé API via VIRUSTOTAL_API_KEY env var. Endpoint GET /api/v3/urls/{url_id}. Ajouter +50 pts si flagguée malveillante. Documenter dans README.",
+        "url": "https://www.virustotal.com/gui/my-apikey"
+      },
+
+      {
+        "title": "Implémenter mode sombre (dark theme)",
+        "status": "Todo",
+        "priority": "Low",
+        "phase": "Phase 3",
+        "owner": "Romuald",
+        "dueDate": "2026-05-25",
+        "effort": 3,
+        "tags": ["frontend"],
+        "description": "Toggle dark/light mode dans l'interface web. Persistance via localStorage('theme'). CSS variables pour couleurs. Bouton lune/soleil dans le header. Respecter prefers-color-scheme pour le mode initial."
+      },
+
+      {
+        "title": "Ajouter support multi-langue FR/EN (i18n)",
+        "status": "Todo",
+        "priority": "Low",
+        "phase": "Phase 3",
+        "owner": "Romuald",
+        "dueDate": "2026-06-01",
+        "effort": 5,
+        "tags": ["frontend"],
+        "description": "Système i18n vanilla JS : fichiers locales/fr.json et locales/en.json. Fonction t('key') pour traductions. Sélecteur langue dans header. localStorage pour persistance. Détecter langue navigateur par défaut."
+      },
+
+      {
+        "title": "Créer landing page marketing",
+        "status": "Todo",
+        "priority": "Medium",
+        "phase": "Phase 3",
+        "owner": "Romuald",
+        "dueDate": "2026-06-05",
+        "effort": 4,
+        "tags": ["frontend", "docs"],
+        "description": "Page HTML statique (ou GitHub Pages) pour présenter le projet publiquement : hero section, features, démo live intégrée, instructions install extension, lien GitHub. Optimisée pour portfolio."
+      },
+
+      {
+        "title": "Publier post LinkedIn — visibilité projet",
+        "status": "Todo",
+        "priority": "Medium",
+        "phase": "Phase 3",
+        "owner": "Romuald",
+        "dueDate": "2026-06-10",
+        "effort": 1,
+        "tags": ["docs"],
+        "description": "Post LinkedIn : présenter le projet avec démo GIF, lien GitHub, hashtags #cybersecurity #python #chrome #phishing. Cibler recruteurs et communauté cybersécurité française."
+      },
+
+      {
+        "title": "Migrer SQLite vers PostgreSQL persistant",
+        "status": "Todo",
+        "priority": "Medium",
+        "phase": "Phase 3",
+        "owner": "Romuald",
+        "dueDate": "2026-06-15",
+        "effort": 4,
+        "tags": ["backend", "devops"],
+        "description": "Remplacer SQLite par PostgreSQL (Render PostgreSQL free tier ou Supabase). Adapter app.py : remplacer sqlite3 par psycopg2. Migrer init_db() et toutes les requêtes SQL. Configurer DATABASE_URL env var.",
+        "url": "https://supabase.com"
+      },
+
+      {
+        "title": "Outlook add-in officiel (Microsoft AppSource)",
+        "status": "Todo",
+        "priority": "Low",
+        "phase": "Phase 4",
+        "owner": "Romuald",
+        "dueDate": "2026-07-01",
+        "effort": 8,
+        "tags": ["extension", "api"],
+        "description": "Office Add-in pour Outlook desktop et web. Manifest XML VSTO ou Web Add-in (JS). Intégration Office.js API pour lire l'email courant. Soumission Microsoft AppSource.",
+        "url": "https://learn.microsoft.com/en-us/office/dev/add-ins/outlook/outlook-add-ins-overview"
+      },
+
+      {
+        "title": "API publique avec authentification (JWT + rate limiting)",
+        "status": "Todo",
+        "priority": "Low",
+        "phase": "Phase 4",
+        "owner": "Romuald",
+        "dueDate": "2026-07-15",
+        "effort": 6,
+        "tags": ["backend", "api"],
+        "description": "Générer des clés API utilisateur. JWT pour auth. Flask-Limiter pour rate limiting (ex: 100 req/day gratuit). Documentation OpenAPI (Swagger). Tableau de bord utilisateur pour voir usage."
+      },
+
+      {
+        "title": "Intégration Stripe — modèle freemium",
+        "status": "Todo",
+        "priority": "Low",
+        "phase": "Phase 4",
+        "owner": "Romuald",
+        "dueDate": "2026-08-01",
+        "effort": 6,
+        "tags": ["backend", "api"],
+        "description": "Freemium : 10 analyses/jour gratuit, Premium illimité (€5/mois). Stripe Checkout + webhooks. Upgrade automatique des limites API après paiement. Dashboard client.",
+        "url": "https://stripe.com/docs"
+      },
+
+      {
+        "title": "Modèle ML pour détection phishing (scikit-learn)",
+        "status": "Todo",
+        "priority": "Low",
+        "phase": "Phase 4",
+        "owner": "Romuald",
+        "dueDate": "2026-08-15",
+        "effort": 20,
+        "tags": ["backend"],
+        "description": "Dataset : PhishTank + OpenPhish. Features : TF-IDF sur le texte, features numériques (longueur URL, nb points, nb tirets…). Modèle : RandomForest ou XGBoost. Objectif : F1-score > 0.95. Sauvegarder modèle en joblib, intégrer dans phishing_analyzer.py."
+      }
+
+    ],
+
+    "views": [
+      {
+        "name": "🗂 Kanban par Status",
+        "type": "board",
+        "groupBy": "Status"
+      },
+      {
+        "name": "📅 Timeline par Phase",
+        "type": "timeline",
+        "dateProperty": "Due Date",
+        "groupBy": "Phase"
+      },
+      {
+        "name": "🔥 Priorités",
+        "type": "table",
+        "sortBy": [{"property": "Priority", "direction": "ascending"}],
+        "filterBy": [{"property": "Status", "operator": "is_not", "value": "Done"}]
+      },
+      {
+        "name": "✅ Complétées",
+        "type": "table",
+        "filterBy": [{"property": "Status", "operator": "is", "value": "Done"}]
+      },
+      {
+        "name": "📊 Stats",
+        "type": "gallery",
+        "groupBy": "Phase"
+      }
+    ],
+
+    "summary": {
+      "total_tasks": 22,
+      "done": 8,
+      "in_progress": 0,
+      "todo": 14,
+      "blocked": 0,
+      "total_effort_hours": 113,
+      "effort_done_hours": 38,
+      "phases": {
+        "Phase 1": { "tasks": 6, "done": 6, "effort": 28 },
+        "Phase 2": { "tasks": 5, "done": 3, "todo": 2, "effort": 16 },
+        "Phase 3": { "tasks": 7, "done": 0, "todo": 7, "effort": 23 },
+        "Phase 4": { "tasks": 4, "done": 0, "todo": 4, "effort": 40 }
+      }
+    }
+  }
+}
