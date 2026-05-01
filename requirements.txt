@@ -1,0 +1,7 @@
+flask>=3.0.0
+requests>=2.31.0
+python-Levenshtein>=0.25.0
+python-dotenv>=1.0.0
+
+# Optionnel — génération d'icônes pour l'extension Chrome
+# Pillow>=10.0.0

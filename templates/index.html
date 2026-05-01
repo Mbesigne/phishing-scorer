@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Phishing Risk Scorer v2</title>
+  <style>
+    /* ── Variables & Reset ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:        #0f0c29;
+      --surface:   #1a1a2e;
+      --card:      #16213e;
+      --grad1:     #667eea;
+      --grad2:     #764ba2;
+      --accent1:   #7c3aed;
+      --accent2:   #a855f7;
+      --text:      #e2e8f0;
+      --muted:     #94a3b8;
+      --border:    rgba(168,85,247,.25);
+      --danger:    #f5576c;
+      --high:      #fa709a;
+      --moderate:  #fee140;
+      --safe:      #a8edea;
+      --radius:    14px;
+      --trans:     .3s cubic-bezier(.4,0,.2,1);
+    }
+    [data-theme="light"] {
+      --bg:      #f0f4ff;
+      --surface: #ffffff;
+      --card:    #ffffff;
+      --text:    #1e293b;
+      --muted:   #64748b;
+      --border:  rgba(124,58,237,.2);
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    .app-header {
+      background: linear-gradient(135deg, var(--grad1), var(--grad2));
+      padding: 1rem 1.5rem;
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: .75rem;
+      box-shadow: 0 4px 24px rgba(0,0,0,.4);
+    }
+    .header-brand { display: flex; align-items: center; gap: .75rem; }
+    .header-brand .logo { font-size: 1.8rem; }
+    .header-brand h1 { font-size: 1.25rem; font-weight: 800; color: #fff; }
+    .header-brand .version {
+      font-size: .7rem; background: rgba(255,255,255,.2);
+      padding: .15rem .5rem; border-radius: 999px; color: rgba(255,255,255,.85);
+      margin-left: .3rem; vertical-align: middle;
+    }
+    .header-stats {
+      display: flex; gap: 1.5rem;
+      font-size: .8rem; color: rgba(255,255,255,.8);
+    }
+    .header-stats span { display: flex; align-items: center; gap: .3rem; }
+    .header-stats strong { color: #fff; font-size: 1rem; }
+    .btn-theme {
+      background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.3);
+      color: #fff; font-size: .85rem; padding: .4rem .9rem; border-radius: 8px;
+      cursor: pointer; transition: background var(--trans);
+    }
+    .btn-theme:hover { background: rgba(255,255,255,.25); }
+
+    /* ── Tabs ── */
+    .tabs-bar {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      display: flex; gap: 0; overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .tabs-bar::-webkit-scrollbar { display: none; }
+    .tab-btn {
+      flex-shrink: 0;
+      padding: .9rem 1.5rem; font-size: .9rem; font-weight: 600;
+      color: var(--muted); background: none; border: none;
+      border-bottom: 3px solid transparent;
+      cursor: pointer; transition: color var(--trans), border-color var(--trans);
+      white-space: nowrap;
+    }
+    .tab-btn:hover { color: var(--accent2); }
+    .tab-btn.active { color: var(--accent2); border-bottom-color: var(--accent2); }
+
+    /* ── Layout ── */
+    .container { max-width: 860px; margin: 0 auto; padding: 2rem 1rem; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── Card ── */
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 1.75rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 6px 24px rgba(0,0,0,.3);
+    }
+    .card-title {
+      font-size: 1rem; font-weight: 700; color: var(--accent2);
+      margin-bottom: 1.25rem; display: flex; align-items: center; gap: .5rem;
+    }
+
+    /* ── Form elements ── */
+    .form-group { margin-bottom: 1.2rem; }
+    label {
+      display: block; font-size: .78rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .07em;
+      color: var(--muted); margin-bottom: .4rem;
+    }
+    label .opt { text-transform: none; letter-spacing: 0; font-weight: 400; opacity: .6; }
+    input[type="text"], textarea {
+      width: 100%; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: .7rem 1rem; color: var(--text);
+      font-size: .92rem; font-family: inherit; resize: vertical; outline: none;
+      transition: border-color var(--trans), box-shadow var(--trans);
+    }
+    input[type="text"]:focus, textarea:focus {
+      border-color: var(--accent1); box-shadow: 0 0 0 3px rgba(124,58,237,.2);
+    }
+    textarea { min-height: 90px; }
+    textarea.mono { font-family: 'Consolas','Courier New',monospace; font-size: .8rem; }
+
+    /* ── Collapsible ── */
+    .collapse-btn {
+      width: 100%; background: none; border: 1px dashed var(--border);
+      color: var(--muted); font-size: .82rem; padding: .55rem 1rem;
+      border-radius: 8px; cursor: pointer; text-align: left;
+      transition: border-color var(--trans), color var(--trans);
+    }
+    .collapse-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+    .collapse-btn .arrow { float: right; transition: transform var(--trans); }
+    .collapse-btn.open .arrow { transform: rotate(180deg); }
+    .collapse-body { display: none; margin-top: .5rem; }
+    .collapse-body.open { display: block; }
+
+    /* ── Buttons ── */
+    .btn-row { display: flex; gap: .75rem; flex-wrap: wrap; }
+    .btn {
+      padding: .7rem 1.4rem; border: none; border-radius: 8px; font-size: .9rem;
+      font-weight: 700; cursor: pointer; transition: opacity var(--trans), transform var(--trans);
+    }
+    .btn:hover:not(:disabled) { opacity: .88; transform: translateY(-1px); }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent1), var(--accent2));
+      color: #fff; box-shadow: 0 4px 16px rgba(124,58,237,.4);
+    }
+    .btn-secondary {
+      background: rgba(255,255,255,.08); color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .btn-danger { background: rgba(245,87,108,.15); color: var(--danger); border: 1px solid rgba(245,87,108,.3); }
+    .btn-full { width: 100%; }
+
+    .spinner {
+      display: none; width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,.3); border-top-color: #fff;
+      border-radius: 50%; animation: spin .7s linear infinite;
+      vertical-align: middle; margin-right: .4rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Error/Info banners ── */
+    .banner {
+      border-radius: 8px; padding: .7rem 1rem; font-size: .88rem; margin-top: 1rem;
+      display: none;
+    }
+    .banner-error { background: rgba(245,87,108,.1); border: 1px solid rgba(245,87,108,.3); color: #fca5a5; }
+    .banner-info  { background: rgba(168,237,234,.1); border: 1px solid rgba(168,237,234,.3); color: var(--safe); }
+
+    /* ── Results ── */
+    #resultsPanel { display: none; animation: slideIn .4s var(--trans); }
+    @keyframes slideIn { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+
+    .score-row { display: flex; align-items: center; gap: 2rem; flex-wrap: wrap; }
+    .score-circle {
+      width: 130px; height: 130px; border-radius: 50%; flex-shrink: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      font-weight: 800; box-shadow: 0 0 0 6px rgba(255,255,255,.06);
+      transition: background var(--trans);
+    }
+    .score-circle .num  { font-size: 2.5rem; line-height: 1; }
+    .score-circle .lbl  { font-size: .6rem; text-transform: uppercase; letter-spacing: .12em; opacity: .7; }
+    .score-info { flex: 1; min-width: 200px; }
+    .risk-pill {
+      display: inline-block; font-size: 1.15rem; font-weight: 800;
+      padding: .3rem 1rem; border-radius: 999px; margin-bottom: .75rem;
+    }
+    .reco-box {
+      background: rgba(255,255,255,.05); border-left: 3px solid var(--accent1);
+      border-radius: 0 8px 8px 0; padding: .7rem 1rem;
+      font-size: .88rem; line-height: 1.6;
+    }
+    .meta-strip {
+      display: flex; gap: 1.2rem; flex-wrap: wrap;
+      font-size: .78rem; color: var(--muted); margin-bottom: .9rem;
+    }
+    .meta-strip span { display: flex; align-items: center; gap: .25rem; }
+
+    /* Detections list */
+    .divider { border: none; border-top: 1px solid var(--border); margin: 1.2rem 0; }
+    .det-list { list-style: none; }
+    .det-list li {
+      display: flex; align-items: flex-start; gap: .6rem;
+      padding: .6rem .85rem; border-radius: 8px; margin-bottom: .45rem;
+      font-size: .87rem; line-height: 1.5;
+      background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.06);
+    }
+    .det-list li.positive { background: rgba(168,237,234,.07); border-color: rgba(168,237,234,.2); color: #a8edea; }
+    .det-list li.info     { background: rgba(168,237,234,.04); border-color: rgba(168,237,234,.1); color: var(--muted); }
+    .det-list .icon       { flex-shrink: 0; width: 1.1rem; }
+    .no-det { color: var(--safe); font-size: .92rem; display: flex; align-items: center; gap: .5rem; }
+
+    /* Score ring colors */
+    .c-danger   { background:rgba(245,87,108,.18); color:var(--danger);   border:2px solid var(--danger); }
+    .c-high     { background:rgba(250,112,154,.18); color:var(--high);    border:2px solid var(--high); }
+    .c-moderate { background:rgba(254,225,64,.18);  color:var(--moderate); border:2px solid var(--moderate); }
+    .c-safe     { background:rgba(168,237,234,.18); color:var(--safe);    border:2px solid var(--safe); }
+
+    .pill-danger   { background:rgba(245,87,108,.2);  color:var(--danger); }
+    .pill-high     { background:rgba(250,112,154,.2); color:var(--high); }
+    .pill-moderate { background:rgba(254,225,64,.2);  color:var(--moderate); }
+    .pill-safe     { background:rgba(168,237,234,.2); color:var(--safe); }
+
+    /* report action buttons */
+    .report-actions { display:flex; gap:.6rem; margin-top:1rem; flex-wrap:wrap; }
+    .btn-sm { padding:.45rem .9rem; font-size:.8rem; border-radius:7px; }
+
+    /* ── History tab ── */
+    .filter-row {
+      display: flex; gap: .75rem; flex-wrap: wrap; margin-bottom: 1.25rem; align-items: flex-end;
+    }
+    .filter-row input, .filter-row select {
+      flex: 1; min-width: 120px; background: var(--surface);
+      border: 1px solid var(--border); border-radius: 8px;
+      padding: .55rem .8rem; color: var(--text); font-size: .85rem; outline: none;
+    }
+    .filter-row input:focus, .filter-row select:focus { border-color: var(--accent1); }
+
+    .table-wrap { overflow-x: auto; border-radius: 10px; margin-bottom: 1rem; }
+    .hist-table { width: 100%; border-collapse: collapse; min-width: 540px; font-size: .84rem; }
+    .hist-table thead tr { background: rgba(124,58,237,.15); }
+    .hist-table th {
+      padding: .6rem .9rem; text-align: left; font-weight: 700;
+      font-size: .75rem; text-transform: uppercase; letter-spacing: .07em;
+      color: var(--accent2); border-bottom: 1px solid var(--border);
+    }
+    .hist-table td { padding: .58rem .9rem; border-bottom: 1px solid rgba(255,255,255,.04); vertical-align: middle; }
+    .hist-table tbody tr:nth-child(even) { background: rgba(255,255,255,.02); }
+    .hist-table tbody tr:hover { background: rgba(168,85,247,.09); }
+    .hist-table td.url-td { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: monospace; font-size: .77rem; color: var(--muted); }
+    .h-score { display:inline-flex; align-items:center; justify-content:center; min-width:52px; padding:.18rem .5rem; border-radius:6px; font-weight:700; font-size:.8rem; }
+    .hist-date { color:var(--muted); font-size:.76rem; white-space:nowrap; }
+    .del-btn { background:none; border:none; color:var(--muted); cursor:pointer; font-size:.9rem; padding:.2rem .4rem; border-radius:4px; transition:color var(--trans); }
+    .del-btn:hover { color:var(--danger); }
+
+    .pagination { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.5rem; font-size:.83rem; color:var(--muted); }
+    .page-btns { display:flex; gap:.4rem; }
+    .page-btn {
+      padding:.3rem .65rem; border-radius:6px; border:1px solid var(--border);
+      background:none; color:var(--muted); cursor:pointer; font-size:.8rem;
+      transition:background var(--trans), color var(--trans);
+    }
+    .page-btn:hover, .page-btn.active { background:var(--accent1); color:#fff; border-color:var(--accent1); }
+    .page-btn:disabled { opacity:.3; cursor:default; }
+
+    /* ── How-it-works grid ── */
+    .how-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:1rem; }
+    .how-item {
+      background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:1rem;
+      transition:border-color var(--trans);
+    }
+    .how-item:hover { border-color:var(--accent2); }
+    .how-item .ico { font-size:1.4rem; margin-bottom:.4rem; }
+    .how-item h3 { font-size:.88rem; font-weight:700; color:var(--accent2); margin-bottom:.3rem; }
+    .how-item p  { font-size:.79rem; color:var(--muted); line-height:1.5; }
+
+    /* ── API Docs ── */
+    .api-endpoint { margin-bottom:1.5rem; }
+    .api-endpoint .ep-header { display:flex; align-items:center; gap:.6rem; margin-bottom:.5rem; }
+    .method { display:inline-block; padding:.2rem .55rem; border-radius:5px; font-size:.75rem; font-weight:700; letter-spacing:.05em; }
+    .method-post { background:rgba(124,58,237,.2); color:var(--accent2); }
+    .method-get  { background:rgba(168,237,234,.15); color:var(--safe); }
+    .method-delete { background:rgba(245,87,108,.15); color:var(--danger); }
+    .ep-path { font-family:monospace; font-size:.9rem; color:var(--text); }
+    .ep-desc { font-size:.84rem; color:var(--muted); margin-bottom:.5rem; }
+    pre.code {
+      background:rgba(0,0,0,.4); border:1px solid var(--border); border-radius:8px;
+      padding:1rem; font-family:monospace; font-size:.78rem; color:#c084fc;
+      overflow-x:auto; position:relative; line-height:1.6;
+    }
+    pre.code .copy-btn {
+      position:absolute; top:.5rem; right:.5rem; background:var(--surface);
+      border:1px solid var(--border); color:var(--muted); font-size:.72rem;
+      padding:.2rem .5rem; border-radius:5px; cursor:pointer;
+    }
+    pre.code .copy-btn:hover { color:var(--accent2); }
+
+    /* ── Misc ── */
+    .ssl-icon { font-size:1rem; }
+    footer { text-align:center; color:var(--muted); font-size:.75rem; padding:2rem 1rem 3rem; opacity:.5; }
+
+    @media(max-width:600px) {
+      .score-row { flex-direction:column; align-items:center; text-align:center; }
+      .reco-box { border-left:none; border-top:3px solid var(--accent1); }
+      .header-stats { display:none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ─── Header ─── -->
+<header class="app-header">
+  <div class="header-brand">
+    <span class="logo">🛡️</span>
+    <h1>Phishing Risk Scorer <span class="version">v2.0</span></h1>
+  </div>
+  <div class="header-stats" id="headerStats">
+    <span>📊 <strong id="statTotal">—</strong> analyses</span>
+    <span>📈 Score moyen <strong id="statAvg">—</strong></span>
+    <span>☀️ Aujourd'hui <strong id="statToday">—</strong></span>
+  </div>
+  <button class="btn-theme" onclick="toggleTheme()" title="Changer de thème">🌙 Thème</button>
+</header>
+
+<!-- ─── Tabs ─── -->
+<nav class="tabs-bar">
+  <button class="tab-btn active" onclick="switchTab('analyze', this)">🔍 Analyser</button>
+  <button class="tab-btn" onclick="switchTab('history', this)">🕐 Historique</button>
+  <button class="tab-btn" onclick="switchTab('guide', this)">📖 Guide</button>
+  <button class="tab-btn" onclick="switchTab('api', this)">⚙️ API</button>
+</nav>
+
+<!-- ════════════════════════════════════════
+     TAB 1 — ANALYSER
+════════════════════════════════════════ -->
+<div class="container">
+<div id="tab-analyze" class="tab-panel active">
+
+  <div class="card">
+    <div class="card-title">🔍 Analyser une URL ou un email</div>
+
+    <div class="form-group">
+      <label for="url">URL à analyser <span style="color:var(--danger)">*</span></label>
+      <input type="text" id="url" placeholder="ex : http://amaz0n-promo.tk/login"
+             autocomplete="off" spellcheck="false" />
+    </div>
+
+    <div class="form-group">
+      <label for="emailText">Corps de l'email <span class="opt">(optionnel)</span></label>
+      <textarea id="emailText" spellcheck="false"
+        placeholder="Collez le texte de l'email pour analyser le langage d'urgence…"></textarea>
+    </div>
+
+    <div class="form-group">
+      <button class="collapse-btn" id="hdrToggle" type="button" onclick="toggleCollapse('hdrToggle','hdrBody')">
+        📋 Headers SMTP <span class="opt">(optionnel — analyse avancée)</span>
+        <span class="arrow">▼</span>
+      </button>
+      <div class="collapse-body" id="hdrBody">
+        <textarea id="headers" class="mono" style="min-height:120px;" spellcheck="false"
+          placeholder="Copiez les headers bruts ici :&#10;&#10;From: &quot;Amazon&quot; &lt;support@amazon.com&gt;&#10;Reply-To: hacker@evil.ru&#10;Received-SPF: fail (...)&#10;Authentication-Results: dkim=fail; dmarc=fail;&#10;..."></textarea>
+        <p style="font-size:.73rem;color:var(--muted);margin-top:.35rem;">
+          💡 Gmail : ⋮ → Afficher l'original · Outlook : Fichier → Propriétés · Thunderbird : Ctrl+U
+        </p>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" id="analyzeBtn" onclick="runAnalysis()">
+        <span class="spinner" id="analyzeSpinner"></span>
+        <span id="analyzeBtnText">🔐 Analyser</span>
+      </button>
+      <button class="btn btn-secondary" onclick="fillExample()">📋 Exemple</button>
+    </div>
+
+    <div class="banner banner-error" id="errorBanner"></div>
+  </div>
+
+  <!-- Résultats -->
+  <div class="card" id="resultsPanel">
+    <div class="card-title">📊 Résultats</div>
+    <div class="meta-strip" id="metaStrip"></div>
+
+    <div class="score-row">
+      <div class="score-circle" id="scoreCircle">
+        <span class="num" id="scoreNum">0</span>
+        <span class="lbl">/ 100</span>
+      </div>
+      <div class="score-info">
+        <div class="risk-pill" id="riskPill"></div>
+        <div class="reco-box" id="recoBox"></div>
+      </div>
+    </div>
+
+    <hr class="divider" />
+    <div class="card-title">⚠️ Indicateurs</div>
+    <div id="detContainer"></div>
+
+    <div class="report-actions">
+      <button class="btn btn-secondary btn-sm" onclick="copyReport()">📋 Copier le rapport</button>
+      <button class="btn btn-secondary btn-sm" onclick="exportCurrentJSON()">⬇️ JSON</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- ════════════════════════════════════════
+     TAB 2 — HISTORIQUE
+════════════════════════════════════════ -->
+<div id="tab-history" class="tab-panel">
+
+  <div class="card">
+    <div class="card-title">🕐 Historique des analyses</div>
+
+    <div class="filter-row">
+      <input type="text" id="filterSearch" placeholder="🔎 Filtrer par domaine…"
+             oninput="applyFilters()" />
+      <select id="filterRisk" onchange="applyFilters()">
+        <option value="">Tous les niveaux</option>
+        <option value="DANGER">🔴 DANGER</option>
+        <option value="ÉLEVÉ">🟠 ÉLEVÉ</option>
+        <option value="MOYEN">🟡 MOYEN</option>
+        <option value="FAIBLE">🟢 FAIBLE</option>
+      </select>
+      <select id="filterSort" onchange="applyFilters()">
+        <option value="date_desc">📅 Date (récent)</option>
+        <option value="date_asc">📅 Date (ancien)</option>
+        <option value="score_desc">📈 Score (haut)</option>
+        <option value="score_asc">📉 Score (bas)</option>
+      </select>
+      <select id="filterPerPage" onchange="applyFilters()">
+        <option value="10">10 / page</option>
+        <option value="25">25 / page</option>
+        <option value="50">50 / page</option>
+      </select>
+    </div>
+
+    <div class="table-wrap">
+      <table class="hist-table">
+        <thead>
+          <tr>
+            <th>URL</th><th>Score</th><th>Risque</th>
+            <th>Confiance</th><th>Date</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="histTableBody"></tbody>
+      </table>
+    </div>
+
+    <div class="pagination" id="paginationRow">
+      <span id="paginationInfo"></span>
+      <div class="page-btns" id="pageButtons"></div>
+    </div>
+
+    <div class="btn-row" style="margin-top:1rem;">
+      <button class="btn btn-secondary" onclick="exportCSV()">⬇️ Exporter CSV</button>
+      <button class="btn btn-danger" onclick="clearHistory()">🗑️ Effacer l'historique</button>
+    </div>
+    <div class="banner banner-info" id="histInfo"></div>
+  </div>
+
+</div>
+
+<!-- ════════════════════════════════════════
+     TAB 3 — GUIDE
+════════════════════════════════════════ -->
+<div id="tab-guide" class="tab-panel">
+
+  <div class="card">
+    <div class="card-title">📖 Comment ça marche</div>
+    <div class="how-grid">
+      <div class="how-item"><div class="ico">🔗</div><h3>URL raccourcie (+25 pts)</h3><p>bit.ly, tinyurl, goo.gl… masquent la destination réelle.</p></div>
+      <div class="how-item"><div class="ico">⏰</div><h3>Urgence (+20 pts)</h3><p>"urgent", "vérifier", "compte suspendu" — manipulation psychologique.</p></div>
+      <div class="how-item"><div class="ico">🎭</div><h3>Typosquattage (+30 pts)</h3><p>amaz0n.com ≈ amazon.com, paypa1.com ≈ paypal.com (SequenceMatcher ≥70%).</p></div>
+      <div class="how-item"><div class="ico">🌐</div><h3>Adresse IP (+35 pts)</h3><p>192.168.x.x au lieu d'un nom de domaine.</p></div>
+      <div class="how-item"><div class="ico">🔒</div><h3>SSL / HTTPS</h3><p>HTTP → +30 pts · Cert invalide → +40 pts · Timeout → +25 pts.</p></div>
+      <div class="how-item"><div class="ico">📋</div><h3>Headers SMTP</h3><p>SPF/DKIM/DMARC, From≠Reply-To, IPs privées, Message-ID suspect.</p></div>
+      <div class="how-item"><div class="ico">🏷️</div><h3>Extension suspecte (+15 pts)</h3><p>.tk, .ml, .ga, .xyz, .work, .online — souvent gratuits.</p></div>
+      <div class="how-item"><div class="ico">🦠</div><h3>VirusTotal (+50 pts)</h3><p>Optionnel. Configurez VIRUSTOTAL_API_KEY pour activer.</p></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📧 Extraire les headers email</div>
+    <div style="display:grid;gap:1rem;grid-template-columns:repeat(auto-fill,minmax(240px,1fr))">
+      <div class="how-item">
+        <div class="ico">📩</div>
+        <h3>Gmail</h3>
+        <p>Ouvrir l'email → ⋮ (Plus d'options) → <strong>Afficher l'original</strong><br>Copier tout le contenu de la zone supérieure.</p>
+      </div>
+      <div class="how-item">
+        <div class="ico">📨</div>
+        <h3>Outlook (Web)</h3>
+        <p>Ouvrir l'email → ⋮ → <strong>Afficher la source du message</strong><br>Copier la section headers.</p>
+      </div>
+      <div class="how-item">
+        <div class="ico">🦅</div>
+        <h3>Thunderbird</h3>
+        <p>Ouvrir l'email → <strong>Ctrl+U</strong> (Afficher la source)<br>Copier jusqu'à la première ligne vide.</p>
+      </div>
+      <div class="how-item">
+        <div class="ico">🍎</div>
+        <h3>Apple Mail</h3>
+        <p>Affichage → <strong>Message → Tous les en-têtes</strong><br>Sélectionner tout et copier.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🔐 Comprendre SPF / DKIM / DMARC</div>
+    <div style="display:flex;flex-direction:column;gap:.8rem;">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1rem;">
+        <strong style="color:var(--accent2)">SPF (Sender Policy Framework)</strong>
+        <p style="font-size:.85rem;color:var(--muted);margin-top:.3rem;line-height:1.6">
+          Vérifie que l'IP de l'expéditeur est autorisée à envoyer pour le domaine. Un <code>spf=fail</code> signifie que l'email prétend venir d'un domaine mais est envoyé depuis une IP non autorisée — signe fort de spoofing.
+        </p>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1rem;">
+        <strong style="color:var(--accent2)">DKIM (DomainKeys Identified Mail)</strong>
+        <p style="font-size:.85rem;color:var(--muted);margin-top:.3rem;line-height:1.6">
+          Signature cryptographique apposée sur l'email. Un <code>dkim=fail</code> signifie que la signature ne correspond pas — l'email a été modifié ou falsifié en transit.
+        </p>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1rem;">
+        <strong style="color:var(--accent2)">DMARC (Domain-based Message Authentication)</strong>
+        <p style="font-size:.85rem;color:var(--muted);margin-top:.3rem;line-height:1.6">
+          Politique du domaine sur les échecs SPF/DKIM. <code>dmarc=fail</code> + <code>p=reject</code> devrait normalement faire rejeter l'email — s'il arrive quand même, c'est suspect.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🆘 Que faire si c'est du phishing ?</div>
+    <ol style="list-style-position:inside;display:flex;flex-direction:column;gap:.5rem;font-size:.88rem;color:var(--muted);line-height:1.6">
+      <li>Ne cliquez PAS sur les liens et ne téléchargez aucune pièce jointe.</li>
+      <li>Ne répondez pas à l'email et ne fournissez aucun identifiant.</li>
+      <li>Signalez sur <strong style="color:var(--accent2)">signal-spam.fr</strong> (France) ou <strong style="color:var(--accent2)">phishing-initiative.fr</strong>.</li>
+      <li>Si vous avez cliqué : changez vos mots de passe immédiatement et activez le 2FA.</li>
+      <li>Prévenez votre responsable sécurité ou votre hébergeur si nécessaire.</li>
+    </ol>
+  </div>
+
+</div>
+
+<!-- ════════════════════════════════════════
+     TAB 4 — API
+════════════════════════════════════════ -->
+<div id="tab-api" class="tab-panel">
+
+  <div class="card">
+    <div class="card-title">⚙️ Documentation API</div>
+    <p style="font-size:.88rem;color:var(--muted);margin-bottom:1.25rem;">
+      Base URL : <code style="color:var(--accent2)">http://localhost:5000</code>
+    </p>
+
+    <div class="api-endpoint">
+      <div class="ep-header">
+        <span class="method method-post">POST</span>
+        <span class="ep-path">/analyze</span>
+      </div>
+      <p class="ep-desc">Analyse complète d'une URL avec email et headers optionnels.</p>
+      <pre class="code"><button class="copy-btn" onclick="copyCode(this)">Copier</button>curl -X POST http://localhost:5000/analyze \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "http://amaz0n-promo.tk/login",
+    "email_text": "Urgent ! Votre compte est suspendu.",
+    "headers": "From: noreply@amazon.com\nAuthentication-Results: dkim=fail"
+  }'</pre>
+    </div>
+
+    <div class="api-endpoint">
+      <div class="ep-header">
+        <span class="method method-get">GET</span>
+        <span class="ep-path">/api/analyze?url=https://...</span>
+      </div>
+      <p class="ep-desc">Analyse rapide via paramètre URL (pour intégrations externes).</p>
+      <pre class="code"><button class="copy-btn" onclick="copyCode(this)">Copier</button>curl "http://localhost:5000/api/analyze?url=https://paypal-secure.tk"</pre>
+    </div>
+
+    <div class="api-endpoint">
+      <div class="ep-header">
+        <span class="method method-get">GET</span>
+        <span class="ep-path">/history?limit=50&amp;min_score=70</span>
+      </div>
+      <p class="ep-desc">Retourne l'historique des analyses. Filtres : limit, min_score, max_score, domain.</p>
+      <pre class="code"><button class="copy-btn" onclick="copyCode(this)">Copier</button>curl "http://localhost:5000/history?limit=20&min_score=50"</pre>
+    </div>
+
+    <div class="api-endpoint">
+      <div class="ep-header">
+        <span class="method method-post">POST</span>
+        <span class="ep-path">/batch-analyze</span>
+      </div>
+      <p class="ep-desc">Analyse un lot de 50 URLs maximum.</p>
+      <pre class="code"><button class="copy-btn" onclick="copyCode(this)">Copier</button>curl -X POST http://localhost:5000/batch-analyze \
+  -H "Content-Type: application/json" \
+  -d '{"urls": ["http://bit.ly/abc", "https://amazon.com", "http://paypa1.tk"]}'</pre>
+    </div>
+
+    <div class="api-endpoint">
+      <div class="ep-header">
+        <span class="method method-get">GET</span>
+        <span class="ep-path">/export/csv</span>
+        <span class="method method-get" style="margin-left:.5rem">GET</span>
+        <span class="ep-path">/export/json</span>
+      </div>
+      <p class="ep-desc">Exporte l'historique complet.</p>
+      <pre class="code"><button class="copy-btn" onclick="copyCode(this)">Copier</button>// JavaScript — Exemple d'appel
+const res = await fetch('/analyze', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ url: 'http://example.com' })
+});
+const data = await res.json();
+console.log(data.score, data.risk_level, data.details);</pre>
+    </div>
+
+    <div class="api-endpoint">
+      <div class="ep-header">
+        <span class="method method-delete">DELETE</span>
+        <span class="ep-path">/history/&lt;id&gt;</span>
+      </div>
+      <p class="ep-desc">Supprime une analyse par son ID.</p>
+      <pre class="code"><button class="copy-btn" onclick="copyCode(this)">Copier</button>curl -X DELETE http://localhost:5000/history/42</pre>
+    </div>
+
+    <div class="api-endpoint">
+      <div class="ep-header">
+        <span class="method method-get">GET</span>
+        <span class="ep-path">/stats</span>
+      </div>
+      <p class="ep-desc">Statistiques globales.</p>
+      <pre class="code"><button class="copy-btn" onclick="copyCode(this)">Copier</button>// Réponse exemple :
+{
+  "total": 142,
+  "avg_score": 38.5,
+  "today": 7,
+  "distribution": {
+    "🔴 DANGER": 23, "🟠 ÉLEVÉ": 41,
+    "🟡 MOYEN": 55, "🟢 FAIBLE": 23
+  }
+}</pre>
+    </div>
+
+  </div>
+</div>
+
+</div><!-- /container -->
+
+<footer>Phishing Risk Scorer v2 — outil pédagogique, non garanti exhaustif · 2025</footer>
+
+<!-- ─────────────────────────────────────────────
+     JAVASCRIPT
+───────────────────────────────────────────── -->
+<script>
+  /* ═══ État global ═══ */
+  let historyData   = [];
+  let currentResult = null;
+  let filterPage    = 1;
+
+  /* ═══ Utilitaires ═══ */
+  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  function scoreClass(s) {
+    if (s >= 70) return { circle:'c-danger',   pill:'pill-danger'   };
+    if (s >= 50) return { circle:'c-high',     pill:'pill-high'     };
+    if (s >= 30) return { circle:'c-moderate', pill:'pill-moderate' };
+    return             { circle:'c-safe',      pill:'pill-safe'     };
+  }
+
+  /* ═══ Tabs ═══ */
+  function switchTab(name, btn) {
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b  => b.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+    if (btn) btn.classList.add('active');
+    if (name === 'history') { loadHistory(); }
+  }
+
+  /* ═══ Dark/Light mode ═══ */
+  function toggleTheme() {
+    const html = document.documentElement;
+    const next = html.dataset.theme === 'dark' ? 'light' : 'dark';
+    html.dataset.theme = next;
+    localStorage.setItem('theme', next);
+    document.querySelector('.btn-theme').textContent = next === 'dark' ? '🌙 Thème' : '☀️ Thème';
+  }
+
+  /* ═══ Collapse ═══ */
+  function toggleCollapse(btnId, bodyId) {
+    document.getElementById(btnId).classList.toggle('open');
+    document.getElementById(bodyId).classList.toggle('open');
+  }
+
+  /* ═══ Exemple ═══ */
+  function fillExample() {
+    document.getElementById('url').value = 'http://amaz0n-promo.tk/login';
+    document.getElementById('emailText').value =
+      'Action urgente ! Votre compte Amazon est suspendu.\n'
+      + 'Cliquez ici pour vérifier votre identité immédiatement.';
+    document.getElementById('headers').value =
+      'From: "Amazon" <no-reply@amazon.com>\n'
+      + 'Reply-To: hacker@evil-domain.ru\n'
+      + 'Received-SPF: fail (amazon.com does not designate 185.1.1.1 as permitted)\n'
+      + 'Authentication-Results: dkim=fail; dmarc=fail; spf=fail\n';
+    if (!document.getElementById('hdrBody').classList.contains('open')) {
+      toggleCollapse('hdrToggle', 'hdrBody');
+    }
+  }
+
+  /* ═══ Analyse ═══ */
+  async function runAnalysis() {
+    const url       = document.getElementById('url').value.trim();
+    const emailText = document.getElementById('emailText').value.trim();
+    const headers   = document.getElementById('headers').value.trim();
+
+    document.getElementById('errorBanner').style.display = 'none';
+    document.getElementById('resultsPanel').style.display = 'none';
+
+    if (!url) { showError('Veuillez entrer une URL à analyser.'); return; }
+
+    const btn  = document.getElementById('analyzeBtn');
+    const spin = document.getElementById('analyzeSpinner');
+    const txt  = document.getElementById('analyzeBtnText');
+    btn.disabled = true; spin.style.display = 'inline-block'; txt.textContent = 'Analyse…';
+
+    try {
+      const res  = await fetch('/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, email_text: emailText, headers }),
+      });
+      const data = await res.json();
+      if (!res.ok) { showError(data.error || 'Erreur serveur'); return; }
+      currentResult = data;
+      renderResult(data);
+    } catch {
+      showError('Serveur non disponible. Lancez : python app.py');
+    } finally {
+      btn.disabled = false; spin.style.display = 'none'; txt.textContent = '🔐 Analyser';
+    }
+  }
+
+  function renderResult(data) {
+    const score = data.score || 0;
+    const { circle, pill } = scoreClass(score);
+
+    /* Cercle */
+    const circ = document.getElementById('scoreCircle');
+    circ.className = 'score-circle ' + circle;
+    animateScore(score);
+
+    /* Pill de risque */
+    const pillEl = document.getElementById('riskPill');
+    pillEl.className = 'risk-pill ' + pill;
+    pillEl.textContent = data.risk_level || '—';
+
+    /* Recommandation */
+    document.getElementById('recoBox').textContent = data.recommendation || '';
+
+    /* Meta */
+    const ts = data.analysis_timestamp ? new Date(data.analysis_timestamp).toLocaleTimeString('fr-FR') : '—';
+    const conf = data.confidence != null ? `Confiance : ${data.confidence}%` : '';
+    const sslBit = (data.details || []).find(d => d.startsWith('🔒'));
+    document.getElementById('metaStrip').innerHTML =
+      `<span>🌐 <b>${esc(data.domain || '—')}</b></span>` +
+      (sslBit ? `<span>🔒 SSL OK</span>` : '') +
+      (conf ? `<span>📊 ${conf}</span>` : '') +
+      `<span>🕐 ${ts}</span>`;
+
+    /* Détections */
+    const dets = data.details || [];
+    const container = document.getElementById('detContainer');
+    if (!dets.length) {
+      container.innerHTML = '<p class="no-det">✅ Aucun indicateur suspect détecté.</p>';
+    } else {
+      const items = dets.map(d => {
+        const isPos  = d.startsWith('🔒') || d.startsWith('✅');
+        const isInfo = d.startsWith('ℹ️');
+        const cls    = isPos ? 'positive' : isInfo ? 'info' : '';
+        const icon   = isPos ? '🔒' : isInfo ? 'ℹ️' : '⚠️';
+        const text   = d.replace(/^(🔒|✅|ℹ️|⚠️)\s*/,'');
+        return `<li class="${cls}"><span class="icon">${icon}</span><span>${esc(text)}</span></li>`;
+      }).join('');
+      container.innerHTML = `<ul class="det-list">${items}</ul>`;
+    }
+
+    document.getElementById('resultsPanel').style.display = 'block';
+    document.getElementById('resultsPanel').scrollIntoView({ behavior:'smooth', block:'start' });
+  }
+
+  function animateScore(target) {
+    const el = document.getElementById('scoreNum');
+    let cur = 0; const step = Math.max(1, Math.ceil(target / 30));
+    const t = setInterval(() => {
+      cur = Math.min(cur + step, target); el.textContent = cur;
+      if (cur >= target) clearInterval(t);
+    }, 30);
+  }
+
+  function showError(msg) {
+    const b = document.getElementById('errorBanner');
+    b.textContent = '❌ ' + msg; b.style.display = 'block';
+  }
+
+  /* ═══ Copy report ═══ */
+  function copyReport() {
+    if (!currentResult) return;
+    const r = currentResult;
+    let txt = `=== Phishing Risk Scorer v2 ===\n`;
+    txt += `URL     : ${r.url}\nDomaine : ${r.domain}\n`;
+    txt += `Score   : ${r.score}/100  ${r.risk_level}\n`;
+    txt += `Confiance : ${r.confidence}%\n`;
+    txt += `Date    : ${r.analysis_timestamp}\n\n`;
+    txt += `Indicateurs :\n`;
+    (r.details || []).forEach(d => txt += `  ${d}\n`);
+    txt += `\nRecommandation : ${r.recommendation}\n`;
+    navigator.clipboard.writeText(txt).then(() => {
+      const b = document.querySelector('.report-actions .btn:first-child');
+      if (b) { b.textContent = '✅ Copié !'; setTimeout(() => b.textContent = '📋 Copier le rapport', 2000); }
+    });
+  }
+
+  function exportCurrentJSON() {
+    if (!currentResult) return;
+    const blob = new Blob([JSON.stringify(currentResult, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = `analysis_${Date.now()}.json`; a.click();
+  }
+
+  /* ═══ Historique ═══ */
+  async function loadHistory() {
+    try {
+      const res  = await fetch('/history?limit=200');
+      historyData = await res.json();
+    } catch {
+      historyData = [];
+      const b = document.getElementById('histInfo');
+      b.textContent = '⚠️ Impossible de charger l\'historique. Serveur non disponible.';
+      b.style.display = 'block';
+    }
+    filterPage = 1;
+    applyFilters();
+  }
+
+  function applyFilters() {
+    const search  = document.getElementById('filterSearch').value.toLowerCase();
+    const risk    = document.getElementById('filterRisk').value;
+    const sort    = document.getElementById('filterSort').value;
+    const perPage = parseInt(document.getElementById('filterPerPage').value);
+
+    let filtered = [...historyData];
+
+    if (search)  filtered = filtered.filter(r => (r.url || '').toLowerCase().includes(search));
+    if (risk)    filtered = filtered.filter(r => (r.risk_level || '').includes(risk));
+
+    switch(sort) {
+      case 'date_asc':   filtered.sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp)); break;
+      case 'score_desc': filtered.sort((a,b) => b.score - a.score); break;
+      case 'score_asc':  filtered.sort((a,b) => a.score - b.score); break;
+      default:           filtered.sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+    }
+
+    const total = filtered.length;
+    const pages = Math.ceil(total / perPage) || 1;
+    if (filterPage > pages) filterPage = pages;
+
+    const start = (filterPage - 1) * perPage;
+    const page  = filtered.slice(start, start + perPage);
+
+    renderHistTable(page);
+    renderPagination(total, pages, perPage);
+  }
+
+  function renderHistTable(rows) {
+    const tbody = document.getElementById('histTableBody');
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:2rem;">Aucune analyse enregistrée.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(r => {
+      const { circle } = scoreClass(r.score || 0);
+      const cls = circle.replace('c-','pill-');
+      const dt  = r.timestamp ? new Date(r.timestamp).toLocaleString('fr-FR',{
+        day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit'
+      }) : '—';
+      return `<tr>
+        <td class="url-td" title="${esc(r.url || '')}">${esc((r.url||'').substring(0,55))}${(r.url||'').length>55?'…':''}</td>
+        <td><span class="h-score ${cls}">${r.score}/100</span></td>
+        <td>${esc(r.risk_level || '—')}</td>
+        <td style="color:var(--muted)">${r.confidence != null ? r.confidence+'%' : '—'}</td>
+        <td class="hist-date">${dt}</td>
+        <td><button class="del-btn" onclick="deleteAnalysis(${r.id})" title="Supprimer">🗑️</button></td>
+      </tr>`;
+    }).join('');
+  }
+
+  function renderPagination(total, pages, perPage) {
+    document.getElementById('paginationInfo').textContent =
+      `${total} résultat${total!==1?'s':''} · page ${filterPage}/${pages}`;
+    const btns = document.getElementById('pageButtons');
+    let html = `<button class="page-btn" onclick="gotoPage(${filterPage-1})" ${filterPage<=1?'disabled':''}>‹</button>`;
+    for (let p = Math.max(1, filterPage-2); p <= Math.min(pages, filterPage+2); p++) {
+      html += `<button class="page-btn${p===filterPage?' active':''}" onclick="gotoPage(${p})">${p}</button>`;
+    }
+    html += `<button class="page-btn" onclick="gotoPage(${filterPage+1})" ${filterPage>=pages?'disabled':''}>›</button>`;
+    btns.innerHTML = html;
+  }
+
+  function gotoPage(p) { filterPage = p; applyFilters(); }
+
+  async function deleteAnalysis(id) {
+    if (!confirm('Supprimer cette analyse ?')) return;
+    await fetch(`/history/${id}`, { method: 'DELETE' });
+    await loadHistory();
+  }
+
+  async function clearHistory() {
+    if (!confirm('Effacer TOUT l\'historique ? Cette action est irréversible.')) return;
+    for (const r of historyData) {
+      await fetch(`/history/${r.id}`, { method: 'DELETE' });
+    }
+    await loadHistory();
+  }
+
+  async function exportCSV() {
+    window.location.href = '/export/csv';
+  }
+
+  /* ═══ Stats header ═══ */
+  async function loadStats() {
+    try {
+      const res  = await fetch('/stats');
+      const data = await res.json();
+      document.getElementById('statTotal').textContent = data.total || 0;
+      document.getElementById('statAvg').textContent   = (data.avg_score || 0).toFixed(1);
+      document.getElementById('statToday').textContent = data.today || 0;
+    } catch { /* silencieux */ }
+  }
+
+  /* ═══ Copy code blocks ═══ */
+  function copyCode(btn) {
+    const pre  = btn.parentElement;
+    const code = pre.textContent.replace('Copier', '').trim();
+    navigator.clipboard.writeText(code).then(() => {
+      btn.textContent = '✅'; setTimeout(() => btn.textContent = 'Copier', 2000);
+    });
+  }
+
+  /* ═══ Keyboard shortcuts ═══ */
+  document.getElementById('url').addEventListener('keydown', e => {
+    if (e.key === 'Enter') runAnalysis();
+  });
+
+  /* ═══ Init ═══ */
+  (function init() {
+    const saved = localStorage.getItem('theme');
+    if (saved) {
+      document.documentElement.dataset.theme = saved;
+      document.querySelector('.btn-theme').textContent = saved === 'dark' ? '🌙 Thème' : '☀️ Thème';
+    }
+    loadStats();
+    setInterval(loadStats, 30000); // refresh stats toutes les 30 s
+  })();
+</script>
+
+</body>
+</html>

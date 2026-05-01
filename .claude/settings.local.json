@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python phishing_analyzer.py)",
+      "Bash(python -X utf8 phishing_analyzer.py)",
+      "Bash(python -c \"import flask; print\\('Flask', flask.__version__\\)\")",
+      "Bash(pip install *)",
+      "Bash(python -X utf8 -c ' *)"
+    ]
+  }
+}
