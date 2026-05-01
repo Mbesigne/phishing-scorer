@@ -5,138 +5,116 @@
   <title>Phishing Risk Scorer</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
     body {
-      width: 360px; min-height: 200px;
+      width: 400px;
       font-family: 'Segoe UI', system-ui, sans-serif;
-      background: #0f0c29; color: #e2e8f0;
-      padding: 0;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: #fff;
+      min-height: 220px;
     }
 
-    /* Header */
-    .popup-header {
-      background: linear-gradient(135deg, #667eea, #764ba2);
-      padding: .9rem 1.1rem; display: flex; align-items: center; gap: .6rem;
-    }
-    .popup-header .logo { font-size: 1.4rem; }
-    .popup-header h1 { font-size: .95rem; font-weight: 800; color: #fff; }
-    .popup-header .ver { font-size: .65rem; background: rgba(255,255,255,.2); padding: .1rem .4rem; border-radius: 999px; color: rgba(255,255,255,.85); margin-left: .3rem; }
-
-    .popup-body { padding: .9rem 1rem; }
-
-    /* Current URL */
-    .url-row {
-      background: #1a1a2e; border: 1px solid rgba(168,85,247,.25);
-      border-radius: 8px; padding: .5rem .75rem; margin-bottom: .8rem;
-      font-size: .73rem; font-family: monospace; color: #94a3b8;
-      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    .container {
+      padding: 28px 24px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
     }
 
-    /* Score circle */
-    .result-area { text-align: center; margin-bottom: .8rem; display: none; }
-    .score-circle {
-      width: 80px; height: 80px; border-radius: 50%;
-      display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
-      font-weight: 800; margin: 0 auto .5rem;
+    .header {
+      text-align: center;
     }
-    .score-circle .num { font-size: 1.7rem; line-height: 1; }
-    .score-circle .lbl { font-size: .55rem; text-transform: uppercase; letter-spacing: .1em; opacity: .7; }
-    .risk-badge {
-      display: inline-block; font-size: .9rem; font-weight: 700;
-      padding: .2rem .75rem; border-radius: 999px; margin-bottom: .5rem;
+    .header .logo { font-size: 2.2rem; display: block; margin-bottom: 6px; }
+    .header h1 {
+      font-size: 1.1rem; font-weight: 800; color: #fff;
+      letter-spacing: .02em;
     }
-    .reco { font-size: .75rem; color: #94a3b8; line-height: 1.5; margin-bottom: .6rem; }
+    .header p {
+      font-size: .75rem; color: rgba(255,255,255,.7); margin-top: 4px;
+    }
 
-    .det-mini { text-align: left; margin-bottom: .75rem; }
-    .det-mini li {
-      font-size: .73rem; color: #94a3b8; list-style: none;
-      padding: .3rem .5rem; border-radius: 5px;
-      background: rgba(255,255,255,.04); margin-bottom: .3rem;
+    .btn-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      width: 100%;
     }
-    .det-mini li.warn { color: #fa709a; }
-    .det-mini li.ok   { color: #a8edea; }
 
-    /* Buttons */
-    .btn-row { display: flex; gap: .5rem; flex-direction: column; }
     .btn {
-      padding: .65rem; border: none; border-radius: 8px; font-size: .84rem;
-      font-weight: 700; cursor: pointer; transition: opacity .2s;
-      display: flex; align-items: center; justify-content: center; gap: .4rem;
+      padding: 14px 20px;
+      border: none;
+      border-radius: 12px;
+      font-size: .92rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: transform .15s, opacity .15s;
+      width: 100%;
     }
-    .btn:hover { opacity: .88; }
-    .btn-primary { background: linear-gradient(135deg, #7c3aed, #a855f7); color: #fff; }
-    .btn-outline { background: rgba(255,255,255,.07); color: #94a3b8; border: 1px solid rgba(168,85,247,.25); }
-    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .btn:hover  { transform: translateY(-1px); opacity: .93; }
+    .btn:active { transform: translateY(0);    opacity: .85; }
+
+    .btn-dashboard {
+      background: rgba(255,255,255,.95);
+      color: #764ba2;
+    }
+    .btn-test {
+      background: rgba(255,255,255,.15);
+      color: #fff;
+      border: 2px solid rgba(255,255,255,.45);
+      backdrop-filter: blur(4px);
+    }
 
     .spinner {
-      display: none; width: 14px; height: 14px;
-      border: 2px solid rgba(255,255,255,.3); border-top-color: #fff;
-      border-radius: 50%; animation: spin .7s linear infinite;
+      display: none;
+      width: 14px; height: 14px;
+      border: 2px solid rgba(255,255,255,.35);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    .error-msg { font-size: .75rem; color: #fca5a5; background: rgba(245,87,108,.1); border: 1px solid rgba(245,87,108,.25); border-radius: 6px; padding: .5rem .75rem; margin-bottom: .75rem; display: none; }
-
-    /* History mini */
-    .history-mini { margin-top: .8rem; border-top: 1px solid rgba(168,85,247,.15); padding-top: .6rem; }
-    .history-mini h3 { font-size: .72rem; text-transform: uppercase; letter-spacing: .07em; color: #64748b; margin-bottom: .4rem; }
-    .h-item {
-      display: flex; align-items: center; gap: .5rem;
-      font-size: .73rem; color: #94a3b8; padding: .25rem 0;
-      border-bottom: 1px solid rgba(255,255,255,.04);
+    .status-bar {
+      width: 100%;
+      background: rgba(255,255,255,.12);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: .74rem;
+      color: rgba(255,255,255,.9);
+      text-align: center;
+      border: 1px solid rgba(255,255,255,.2);
     }
-    .h-score-sm {
-      min-width: 38px; padding: .1rem .35rem; border-radius: 4px;
-      font-weight: 700; text-align: center; font-size: .72rem; flex-shrink: 0;
-    }
-    .h-url { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-
-    /* Color classes */
-    .c-danger   { background:rgba(245,87,108,.18);  color:#f5576c; border:2px solid #f5576c; }
-    .c-high     { background:rgba(250,112,154,.18); color:#fa709a; border:2px solid #fa709a; }
-    .c-moderate { background:rgba(254,225,64,.18);  color:#fee140; border:2px solid #fee140; }
-    .c-safe     { background:rgba(168,237,234,.18); color:#a8edea; border:2px solid #a8edea; }
-    .pill-danger   { background:rgba(245,87,108,.2);  color:#f5576c; }
-    .pill-high     { background:rgba(250,112,154,.2); color:#fa709a; }
-    .pill-moderate { background:rgba(254,225,64,.2);  color:#fee140; }
-    .pill-safe     { background:rgba(168,237,234,.2); color:#a8edea; }
   </style>
 </head>
 <body>
-  <div class="popup-header">
-    <span class="logo">🛡️</span>
-    <h1>Phishing Risk Scorer <span class="ver">v2</span></h1>
-  </div>
+  <div class="container">
 
-  <div class="popup-body">
-    <div class="url-row" id="currentUrl">Chargement…</div>
-
-    <!-- Zone résultat (masquée jusqu'à l'analyse) -->
-    <div class="result-area" id="resultArea">
-      <div class="score-circle" id="scoreCircle">
-        <span class="num" id="scoreNum">—</span>
-        <span class="lbl">/ 100</span>
-      </div>
-      <div class="risk-badge" id="riskBadge"></div>
-      <p class="reco" id="recoText"></p>
-      <ul class="det-mini" id="detMini"></ul>
+    <div class="header">
+      <span class="logo">🛡️</span>
+      <h1>Phishing Risk Scorer</h1>
+      <p>Détection de phishing pour Gmail, Outlook &amp; Yahoo</p>
     </div>
 
-    <div class="error-msg" id="errorMsg"></div>
-
-    <div class="btn-row">
-      <button class="btn btn-primary" id="analyzeBtn">
-        <span class="spinner" id="spin"></span>
-        <span id="btnLabel">🔐 Analyser cette page</span>
+    <div class="btn-group">
+      <button class="btn btn-dashboard" id="btnDashboard">
+        📊 Ouvrir le Tableau de Bord
       </button>
-      <button class="btn btn-outline" id="openDashboard">📊 Ouvrir le dashboard</button>
+      <button class="btn btn-test" id="btnTest">
+        <span class="spinner" id="spin"></span>
+        <span id="btnTestLabel">🧪 Tester l'Extension</span>
+      </button>
     </div>
 
-    <div class="history-mini" id="historyMini">
-      <h3>Analyses récentes</h3>
-      <div id="historyList"></div>
+    <div class="status-bar">
+      ✅ Extension connectée à : phishing-scorer.onrender.com
     </div>
+
   </div>
-
   <script src="popup.js"></script>
 </body>
 </html>

@@ -1,61 +1,46 @@
-/**
- * Phishing Risk Scorer — Service Worker (background.js)
- * Gère les messages, met à jour le badge et stocke l'historique Chrome.
- */
+const API_URL = "https://phishing-scorer.onrender.com/analyze";
 
-const API_BASE = "http://localhost:5000";
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message.action !== "analyze") return false;
 
-/* ── Réception des résultats d'analyse depuis content.js ── */
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === "ANALYSIS_RESULT") {
-    const data  = message.data || {};
-    const score = data.score ?? 0;
+  const { url, email_text = "", headers = "" } = message.data || {};
 
-    // Couleur du badge selon le niveau de risque
-    const badgeColor =
-      score >= 70 ? "#f5576c" :
-      score >= 50 ? "#fa709a" :
-      score >= 30 ? "#fee140" : "#a8edea";
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
 
-    // Met à jour le badge de l'icône pour cet onglet
-    if (sender.tab?.id) {
-      chrome.action.setBadgeText({ text: String(score), tabId: sender.tab.id });
-      chrome.action.setBadgeBackgroundColor({ color: badgeColor, tabId: sender.tab.id });
-    }
-
-    // Sauvegarde dans chrome.storage.local (max 20 entrées)
-    chrome.storage.local.get(["analysisHistory"], (result) => {
-      const history = result.analysisHistory || [];
-      history.unshift({
-        url:        data.url || "",
-        score:      score,
-        risk_level: data.risk_level || "",
-        timestamp:  data.analysis_timestamp || new Date().toISOString(),
-        domain:     data.domain || "",
+  fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url, email_text, headers_text: headers }),
+    signal: controller.signal,
+  })
+    .then((res) => {
+      clearTimeout(timeout);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    })
+    .then((data) => {
+      const score = data.score ?? 0;
+      chrome.action.setBadgeText({ text: String(score) });
+      chrome.action.setBadgeBackgroundColor({
+        color:
+          score >= 70 ? "#ef4444" :
+          score >= 50 ? "#f97316" :
+          score >= 30 ? "#eab308" : "#22c55e",
       });
-      chrome.storage.local.set({ analysisHistory: history.slice(0, 20) });
+      sendResponse({ ok: true, ...data });
+    })
+    .catch((err) => {
+      clearTimeout(timeout);
+      sendResponse({
+        ok: false,
+        error: err.name === "AbortError" ? "Timeout (5s) — serveur trop lent" : err.message,
+      });
     });
 
-    sendResponse({ ok: true });
-  }
-
-  // Requête du popup pour obtenir l'historique
-  if (message.type === "GET_HISTORY") {
-    chrome.storage.local.get(["analysisHistory"], (result) => {
-      sendResponse({ history: result.analysisHistory || [] });
-    });
-    return true; // async
-  }
-
-  // Efface le badge quand l'onglet change
-  if (message.type === "CLEAR_BADGE" && sender.tab?.id) {
-    chrome.action.setBadgeText({ text: "", tabId: sender.tab.id });
-  }
-
-  return true;
+  return true; // keep message channel open for async sendResponse
 });
 
-/* ── Efface le badge quand on navigue vers une nouvelle page ── */
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   if (changeInfo.status === "loading") {
     chrome.action.setBadgeText({ text: "", tabId });
