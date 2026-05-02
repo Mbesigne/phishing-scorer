@@ -7,7 +7,9 @@
       "Bash(pip install *)",
       "Bash(python -X utf8 -c ' *)",
       "Bash(python generate_docs.py)",
-      "Bash(python -c \"import os; s=os.path.getsize\\('cahier-de-charges.docx'\\); print\\(f'{s//1024} KB — {s} bytes'\\)\")"
+      "Bash(python -c \"import os; s=os.path.getsize\\('cahier-de-charges.docx'\\); print\\(f'{s//1024} KB — {s} bytes'\\)\")",
+      "Bash(python -c \"import phishing_analyzer; print\\('phishing_analyzer OK'\\)\")",
+      "Bash(python -c \"import app; print\\('app OK'\\)\")"
     ]
   }
 }

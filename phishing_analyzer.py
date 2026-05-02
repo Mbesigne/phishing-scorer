@@ -9,6 +9,7 @@ import socket
 import hashlib
 import json
 import os
+import base64
 from urllib.parse import urlparse
 from difflib import SequenceMatcher
 from datetime import datetime
@@ -21,6 +22,12 @@ try:
     REQUESTS_AVAILABLE = True
 except ImportError:
     REQUESTS_AVAILABLE = False
+
+try:
+    import whois as whois_lib
+    WHOIS_AVAILABLE = True
+except ImportError:
+    WHOIS_AVAILABLE = False
 
 try:
     from Levenshtein import distance as levenshtein_distance
@@ -65,6 +72,21 @@ URGENCY_WORDS = [
     "immediately", "verify", "confirm", "suspended", "unusual activity",
     "click here", "act now", "expires", "validate", "limited time",
     "update your", "your account has been",
+]
+
+# Patterns regex pour détecter les variantes obfusquées (leet-speak, mixte…)
+# Format : (regex, label lisible)
+_URGENCY_OBFUSCATED = [
+    (r"c[1l!][i1!]ck",                  "click (obfusqué)"),
+    (r"v[3e]r[i1!]f[y1!]",             "verify (obfusqué)"),
+    (r"c[o0]nf[i1!]rm",                "confirm (obfusqué)"),
+    (r"(?:u[Rr][Gg]|U[rR][gG])[eE][nN][tT]", "urgent (mixte)"),
+    (r"susp[e3]nd",                     "suspended (obfusqué)"),
+    (r"acc[o0]unt",                     "account (obfusqué)"),
+    (r"l[o0]g[i1!]n",                  "login (obfusqué)"),
+    (r"p[a@]ssw[o0]rd",                "password (obfusqué)"),
+    (r"upd[a@][t7]e",                   "update (obfusqué)"),
+    (r"[s$]ecur[i1!]t[y1!]",           "security (obfusqué)"),
 ]
 
 # Domaines de référence pour la détection de typosquattage
@@ -115,11 +137,22 @@ def detect_shortened_url(url: str) -> bool:
 # ---------------------------------------------------------------------------
 
 def detect_urgency_words(text: str) -> list:
-    """Retourne la liste des mots d'urgence trouvés dans le texte."""
+    """
+    Retourne la liste des mots/patterns d'urgence trouvés dans le texte.
+    Détecte aussi les variantes obfusquées (leet-speak, majuscules alternées).
+    """
     if not text:
         return []
     text_lower = text.lower()
+
+    # Mots exacts
     found = [w for w in URGENCY_WORDS if w in text_lower]
+
+    # Variantes obfusquées via regex
+    for pattern, label in _URGENCY_OBFUSCATED:
+        if re.search(pattern, text, re.IGNORECASE):
+            found.append(label)
+
     return list(dict.fromkeys(found))  # dédupliqué, ordre préservé
 
 
@@ -383,44 +416,55 @@ def analyze_email_headers(headers_text: str) -> dict:
 # 9. check_url_reputation  (optionnel VirusTotal, +50 pts)
 # ---------------------------------------------------------------------------
 
-def check_url_reputation(url: str) -> dict:
+def check_url_reputation(url: str, api_key: str = "") -> dict:
     """
     Vérifie la réputation de l'URL via l'API VirusTotal v3.
-    Nécessite la variable d'environnement VIRUSTOTAL_API_KEY.
-    Sans clé, retourne un résultat neutre.
+    La clé peut être passée explicitement ou lue depuis VIRUSTOTAL_API_KEY.
+    Sans clé, retourne un résultat neutre (dégradation gracieuse).
     """
-    api_key = os.environ.get("VIRUSTOTAL_API_KEY", "").strip()
+    key = (api_key or os.environ.get("VIRUSTOTAL_API_KEY", "")).strip()
 
-    if not api_key or not REQUESTS_AVAILABLE:
+    if not key or not REQUESTS_AVAILABLE:
         return {
             "detected": False, "malicious_count": 0,
             "score_add": 0, "note": "Clé API VirusTotal non configurée.",
         }
 
     try:
-        import base64
         url_id = base64.urlsafe_b64encode(url.encode()).decode().rstrip("=")
-        vt_url = f"https://www.virustotal.com/api/v3/urls/{url_id}"
         resp = requests.get(
-            vt_url,
-            headers={"x-apikey": api_key},
-            timeout=8
+            f"https://www.virustotal.com/api/v3/urls/{url_id}",
+            headers={"x-apikey": key},
+            timeout=8,
         )
 
         if resp.status_code == 200:
-            data = resp.json()
-            stats = data.get("data", {}).get("attributes", {}).get("last_analysis_stats", {})
+            stats = (
+                resp.json()
+                .get("data", {})
+                .get("attributes", {})
+                .get("last_analysis_stats", {})
+            )
             malicious = stats.get("malicious", 0) + stats.get("suspicious", 0)
+            total = sum(stats.values()) or 1
 
             if malicious > 0:
                 return {
-                    "detected": True, "malicious_count": malicious,
+                    "detected": True,
+                    "malicious_count": malicious,
+                    "total_vendors": total,
                     "score_add": 50,
-                    "note": f"Détecté par {malicious} moteur(s) antivirus VirusTotal.",
+                    "note": f"Détecté par {malicious}/{total} moteurs VirusTotal.",
                 }
             return {
                 "detected": False, "malicious_count": 0,
                 "score_add": 0, "note": "URL non détectée par VirusTotal.",
+            }
+
+        if resp.status_code == 404:
+            return {
+                "detected": False, "malicious_count": 0,
+                "score_add": 0, "note": "URL inconnue de VirusTotal (nouvelle URL).",
             }
 
         return {
@@ -433,6 +477,116 @@ def check_url_reputation(url: str) -> dict:
             "detected": False, "malicious_count": 0,
             "score_add": 0, "note": f"Vérification VirusTotal impossible ({type(e).__name__}).",
         }
+
+
+# ---------------------------------------------------------------------------
+# 9b. check_google_safe_browsing  (MALWARE/SOCIAL_ENGINEERING → +40 pts)
+# ---------------------------------------------------------------------------
+
+def check_google_safe_browsing(url: str, api_key: str = "") -> dict:
+    """
+    Vérifie si l'URL figure dans les listes Google Safe Browsing v4.
+    La clé peut être passée explicitement ou lue depuis GOOGLE_SAFE_BROWSING_KEY.
+    Sans clé, retourne un résultat neutre (dégradation gracieuse).
+    Free tier : illimité avec clé API (Google Cloud Console).
+    """
+    key = (api_key or os.environ.get("GOOGLE_SAFE_BROWSING_KEY", "")).strip()
+
+    if not key or not REQUESTS_AVAILABLE:
+        return {"is_safe": True, "threat_types": [], "score_add": 0, "note": "Clé GSB non configurée."}
+
+    payload = {
+        "client": {"clientId": "phishing-risk-scorer", "clientVersion": "2.0"},
+        "threatInfo": {
+            "threatTypes": [
+                "MALWARE", "SOCIAL_ENGINEERING",
+                "UNWANTED_SOFTWARE", "POTENTIALLY_HARMFUL_APPLICATION",
+            ],
+            "platformTypes":    ["ANY_PLATFORM"],
+            "threatEntryTypes": ["URL"],
+            "threatEntries":    [{"url": url}],
+        },
+    }
+
+    try:
+        resp = requests.post(
+            f"https://safebrowsing.googleapis.com/v4/threatMatches:find?key={key}",
+            json=payload,
+            timeout=5,
+        )
+
+        if resp.status_code == 200:
+            matches = resp.json().get("matches", [])
+            if matches:
+                threat_types = list({m["threatType"] for m in matches})
+                return {
+                    "is_safe": False,
+                    "threat_types": threat_types,
+                    "score_add": 40,
+                    "note": f"Google Safe Browsing : {', '.join(threat_types)}",
+                }
+            return {"is_safe": True, "threat_types": [], "score_add": 0, "note": "Propre (Google Safe Browsing)"}
+
+        return {"is_safe": True, "threat_types": [], "score_add": 0, "note": f"GSB API erreur {resp.status_code}"}
+
+    except Exception as e:
+        return {
+            "is_safe": True, "threat_types": [], "score_add": 0,
+            "note": f"GSB vérification impossible ({type(e).__name__})",
+        }
+
+
+# ---------------------------------------------------------------------------
+# 9c. check_domain_age  (< 30j → +25 pts / < 1 an → +15 pts)
+# ---------------------------------------------------------------------------
+
+def check_domain_age(domain: str) -> dict:
+    """
+    Vérifie l'âge du domaine via WHOIS.
+    Les domaines très récents (< 30 jours) sont fréquemment utilisés pour le phishing.
+    Nécessite le package python-whois. Sans le package, retourne un résultat neutre.
+    """
+    if not WHOIS_AVAILABLE or not domain or is_ip_address(domain):
+        return {"age_days": None, "is_new": False, "score_add": 0, "detail": ""}
+
+    try:
+        info = whois_lib.whois(domain)
+        creation = info.creation_date
+
+        if creation is None:
+            return {"age_days": None, "is_new": False, "score_add": 0, "detail": ""}
+
+        if isinstance(creation, list):
+            creation = creation[0]
+
+        age_days = (datetime.now() - creation.replace(tzinfo=None)).days
+
+        if age_days < 0:
+            return {"age_days": None, "is_new": False, "score_add": 0, "detail": ""}
+
+        if age_days < 30:
+            return {
+                "age_days":  age_days,
+                "is_new":    True,
+                "score_add": 25,
+                "detail":    f"⚠️ Domaine très récent ({age_days} jour(s)) — souvent utilisé pour phishing (+25 pts)",
+            }
+        if age_days < 365:
+            return {
+                "age_days":  age_days,
+                "is_new":    True,
+                "score_add": 15,
+                "detail":    f"⚠️ Domaine < 1 an ({age_days} jours) (+15 pts)",
+            }
+        return {
+            "age_days":  age_days,
+            "is_new":    False,
+            "score_add": 0,
+            "detail":    f"✅ Domaine établi ({age_days // 365} an(s))",
+        }
+
+    except Exception:
+        return {"age_days": None, "is_new": False, "score_add": 0, "detail": ""}
 
 
 # ---------------------------------------------------------------------------
@@ -525,9 +679,18 @@ def calculate_phishing_score(
     url: str,
     email_text: str = "",
     headers_text: str = "",
+    virustotal_key: str = "",
+    google_sb_key: str = "",
 ) -> dict:
     """
-    Calcule le score de risque phishing (0-100) en combinant les 10 vecteurs.
+    Calcule le score de risque phishing (0-100) en combinant 13 vecteurs.
+
+    Args:
+        url:             URL à analyser (requis)
+        email_text:      Corps de l'email (optionnel)
+        headers_text:    Headers SMTP bruts (optionnel)
+        virustotal_key:  Clé API VirusTotal (optionnel, sinon lit VIRUSTOTAL_API_KEY)
+        google_sb_key:   Clé Google Safe Browsing (optionnel, sinon lit GOOGLE_SAFE_BROWSING_KEY)
 
     Retourne un dict avec : score, risk_level, domain, details,
     recommendation, confidence, analysis_timestamp.
@@ -618,12 +781,37 @@ def calculate_phishing_score(
     # ── 8. Réputation VirusTotal ──────────────────────────────────────────
     checks_attempted += 1
     try:
-        rep = check_url_reputation(url)
+        rep = check_url_reputation(url, virustotal_key)
         if rep["detected"]:
             raw_score += rep["score_add"]
             details.append(f"🔴 {rep['note']} (+{rep['score_add']} pts)")
         elif "non configurée" not in rep.get("note", ""):
             details.append(f"✅ VirusTotal : {rep['note']}")
+        checks_succeeded += 1
+    except Exception:
+        checks_succeeded += 0.5
+
+    # ── 8b. Google Safe Browsing ──────────────────────────────────────────
+    checks_attempted += 1
+    try:
+        gsb = check_google_safe_browsing(url, google_sb_key)
+        if not gsb["is_safe"]:
+            raw_score += gsb["score_add"]
+            details.append(f"🔴 {gsb['note']} (+{gsb['score_add']} pts)")
+        elif "non configurée" not in gsb.get("note", ""):
+            details.append(f"✅ {gsb['note']}")
+        checks_succeeded += 1
+    except Exception:
+        checks_succeeded += 0.5
+
+    # ── 8c. Âge du domaine (WHOIS) ────────────────────────────────────────
+    checks_attempted += 1
+    try:
+        age = check_domain_age(domain)
+        if age["score_add"] > 0:
+            raw_score += age["score_add"]
+        if age["detail"]:
+            details.append(age["detail"])
         checks_succeeded += 1
     except Exception:
         checks_succeeded += 0.5

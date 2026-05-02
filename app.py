@@ -11,13 +11,22 @@ import sqlite3
 import logging
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, Response
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # python-dotenv optionnel en production (variables déjà injectées par Render)
+
 from phishing_analyzer import calculate_phishing_score, hash_analysis
 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 
-DATABASE_PATH = os.environ.get("DATABASE_PATH", "phishing_history.db")
+DATABASE_PATH      = os.environ.get("DATABASE_PATH", "phishing_history.db")
+VIRUSTOTAL_KEY     = os.environ.get("VIRUSTOTAL_API_KEY", "").strip()
+GOOGLE_SB_KEY      = os.environ.get("GOOGLE_SAFE_BROWSING_KEY", "").strip()
 
 logging.basicConfig(
     level=logging.INFO,
@@ -126,14 +135,24 @@ def analyze():
     """
     data = request.get_json(force=True, silent=True) or {}
 
-    url        = data.get("url", "").strip()
-    email_text = data.get("email_text", "").strip()
-    headers    = data.get("headers", "").strip()
+    url          = data.get("url", "").strip()
+    email_text   = data.get("email_text", "").strip()
+    # Accepte "headers", "headers_text" ou "headers_smtp" pour compatibilité extension
+    headers_text = (
+        data.get("headers_text")
+        or data.get("headers")
+        or data.get("headers_smtp")
+        or ""
+    ).strip()
 
     if not url:
         return jsonify({"error": "Le champ 'url' est requis."}), 400
 
-    result = calculate_phishing_score(url, email_text, headers)
+    result = calculate_phishing_score(
+        url, email_text, headers_text,
+        virustotal_key=VIRUSTOTAL_KEY,
+        google_sb_key=GOOGLE_SB_KEY,
+    )
 
     # Persistance en base
     row_id = save_analysis(result)
